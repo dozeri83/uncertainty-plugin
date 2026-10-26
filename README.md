@@ -72,7 +72,8 @@ Per pixel, a splat's colour Jacobian factors as $`\frac{\partial C}{\partial \al
 ## Requirements
 
 - NVIDIA GPU with CUDA 12.
-- The plugin installs `cupy-cuda12x` and `numpy` into its own environment.
+- The plugin installs `cupy-cuda12x[ctk]` and `numpy` into its own environment. The `ctk` extra brings NVRTC and the CUDA headers as Python packages, so no system CUDA toolkit is needed; only an NVIDIA driver that supports CUDA 12.
+- Tested on Windows 11 with an RTX 4090. Linux is untested.
 
 ## Development tools
 

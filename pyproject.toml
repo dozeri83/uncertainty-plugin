@@ -6,7 +6,7 @@ authors = [{ name = "dozeri" }]
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
-    "cupy-cuda12x>=13.3",
+    "cupy-cuda12x[ctk]>=13.3",
 ]
 
 [tool.lichtfeld]
