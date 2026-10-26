@@ -28,7 +28,7 @@ Finite differences of a float32 render are noisy for faint or very flat splats, 
 
 ## Driving the app
 
-LichtFeld Studio must be running; it serves MCP at `http://localhost:45677/mcp`.
+LichtFeld Studio must be running; it serves MCP at `http://localhost:45677/mcp`. Set `LFS_MCP_URL` to target another instance, for example one started with `--mcp-port 45688`.
 
 | Script | What it does |
 |---|---|

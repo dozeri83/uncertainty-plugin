@@ -461,20 +461,38 @@ class Controller:
             raise RuntimeError(TRAINING_MESSAGE)
         if not self.result_valid() or self._hidden is None or not self._hidden.any():
             raise RuntimeError("Nothing is hidden")
+        if not (~(self._hidden | self._pre_deleted)).any():
+            # LichtFeld deletes the whole node when every one of its splats is selected
+            raise RuntimeError("Apply Removal would remove every splat and delete the model itself. "
+                               "Lower the percentage.")
         scene = lf.get_scene()
         hidden = self._hidden.copy()
         # give the splats back first so the delete records a clean before/after for undo
         self.restore_hidden()
-        scene.set_selection_mask(self._scene_mask(hidden))
-        result = lf.pipeline.edit.delete_().execute()
-        ok = result.get("ok", True) if isinstance(result, dict) else bool(result)
-        if not ok:
-            raise RuntimeError(f"Delete failed: {result}")
+        try:
+            scene.set_selection_mask(self._scene_mask(hidden))
+            result = lf.pipeline.edit.delete_().execute()
+            ok = result.get("ok", True) if isinstance(result, dict) else bool(result)
+            if not ok:
+                raise RuntimeError(f"Delete failed: {result.get('error') if isinstance(result, dict) else result}")
+        except Exception:
+            try:
+                scene.clear_selection()
+            except Exception:
+                pass
+            self.update_hidden()  # hide them again so the view matches the slider
+            raise
         removed = int(hidden.sum())
         self.sel.percent = 0.0
         self.sel.value = None
         br.notify_changed()
         return removed
+
+    def all_hidden(self) -> bool:
+        """True when the slider hides every splat that is still in the model."""
+        if self._hidden is None or self._pre_deleted is None:
+            return False
+        return bool(self._hidden.any()) and not (~(self._hidden | self._pre_deleted)).any()
 
     def deleted_count(self) -> int:
         """Splats currently deleted (or hidden) in the result model."""
@@ -487,7 +505,7 @@ class Controller:
     def _scene_mask(self, mask: np.ndarray):
         from . import lfs_bridge as br
 
-        total = br.total_gaussians()
+        total = br.selection_total()
         off = br.node_offset(self.result_node)
         if off is None:
             raise RuntimeError("Model node is gone")
@@ -497,20 +515,30 @@ class Controller:
 
     # ------------------------------------------------------------------ export
     def export_ply(self, path: str):
-        """Write the model with every score as an extra PLY attribute."""
+        """Write the visible splats with every score as an extra PLY attribute.
+
+        Splats that are deleted or hidden by the removal slider are left out; LichtFeld's exporter
+        drops their score rows too. The model's real colours are written, even while the heatmap shows.
+        """
         from . import lfs_bridge as br
 
         if not self.result_valid():
             raise RuntimeError("No valid result to export")
-        if self.heatmap_on:
+        heat_was_on = self.heatmap_on
+        if heat_was_on:
             self.restore_colors()
-        self.restore_hidden()
-        node = br.find_node(self.result_node)
-        extra = {}
-        for s in STRATEGIES:
-            extra[f"unc_{s.key}"] = lf.Tensor.from_numpy(
-                display_value(s.key, self.result.scores[s.key]).astype(np.float32))
-        lf.io.save_ply(node.splat_data(), path, extra_attributes=extra)
+        try:
+            node = br.find_node(self.result_node)
+            extra = {}
+            for s in STRATEGIES:
+                values = display_value(s.key, self.result.scores[s.key]).astype(np.float32)
+                values = np.nan_to_num(values, nan=0.0, posinf=np.finfo(np.float32).max,
+                                       neginf=-np.finfo(np.float32).max)  # the exporter rejects non-finite values
+                extra[f"unc_{s.key}"] = lf.Tensor.from_numpy(np.ascontiguousarray(values))
+            lf.io.save_ply(node.splat_data(), path, extra_attributes=extra)
+        finally:
+            if heat_was_on:
+                self.show_heatmap()
 
     def shutdown(self):
         self._cancel = True

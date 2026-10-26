@@ -195,9 +195,43 @@ def notify_changed():
         scene.notify_changed()
 
 
-def total_gaussians() -> int:
+def selection_total() -> int:
+    """Length of LichtFeld's scene-wide selection mask: every splat node, hidden ones included.
+
+    (scene.total_gaussian_count counts only visible nodes, so it cannot be used here.)
+    """
+    return sum(int(n.gaussian_count) for n in splat_nodes())
+
+
+_DISTORTION_CACHE = {"generation": None, "value": (0, 0)}
+
+
+def distorted_camera_count():
+    """(distorted, total) over the training cameras, cached per scene generation."""
+    try:
+        generation = lf.get_scene_generation()
+    except Exception:
+        generation = None
+    if generation is not None and _DISTORTION_CACHE["generation"] == generation:
+        return _DISTORTION_CACHE["value"]
+    value = _count_distorted()
+    _DISTORTION_CACHE["generation"] = generation
+    _DISTORTION_CACHE["value"] = value
+    return value
+
+
+def _count_distorted():
     scene = lf.get_scene()
-    return int(scene.total_gaussian_count) if scene is not None else 0
+    if scene is None:
+        return 0, 0
+    nodes = scene.get_active_cameras() or [n for n in scene.get_nodes() if str(n.type).endswith("CAMERA")]
+    distorted = 0
+    for n in nodes:
+        try:
+            distorted += 1 if n.has_distortion else 0
+        except Exception:
+            pass
+    return distorted, len(nodes)
 
 
 def node_offset(node_name: str) -> Optional[int]:

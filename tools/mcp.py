@@ -9,12 +9,13 @@ Example: python tools/mcp.py call render_capture '{"width": 1200}'
 
 import base64
 import json
+import os
 import sys
 import time
 import urllib.request
 from pathlib import Path
 
-URL = "http://localhost:45677/mcp"
+URL = os.environ.get("LFS_MCP_URL", "http://localhost:45677/mcp")
 OUT = Path(__file__).resolve().parent / "out"
 
 

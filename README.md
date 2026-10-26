@@ -14,8 +14,9 @@ A LichtFeld Studio plugin that estimates how well the training photos pin down e
 4. **Remove by uncertainty**: choose the score (by default the heatmap strategy) and the rule (most uncertain percent, score at or above a value, or most certain percent).
    - The percentage bar starts at 0. Moving it hides the matching splats at once (a soft delete), and moving it back brings them back.
    - When at least one splat is hidden, **Apply Removal** appears. It deletes them from the model in place with LichtFeld's own splat delete, as one undo step, so Ctrl+Z restores them. *Reset* unhides everything.
+   - Apply Removal refuses when every remaining splat is hidden, because LichtFeld would then delete the model node itself.
    - A project opened from training stays a training project; no second model is created, because LichtFeld renders only the training model in that mode.
-5. **Export** (optional) writes a PLY with every score as an extra `unc_<strategy>` attribute.
+5. **Export** (optional) writes the visible splats to a PLY, with every score as an extra `unc_<strategy>` attribute. Deleted and slider-hidden splats are left out, and the model's real colours are written even while the heatmap shows.
 
 **While training runs** the panel is disabled and shows "Training is running. Pause or finish training to use Splat Uncertainty." When training starts, the plugin first hides the heatmap, unhides any splats it hid and cancels a running Fisher pass, so the trainer always gets the untouched model.
 
@@ -65,9 +66,8 @@ Per pixel, a splat's colour Jacobian factors as $`\frac{\partial C}{\partial \al
 - **Only an L2 photometric term is modelled, not LichtFeld's full training loss.** The curvature comes from a Gauss-Newton approximation of an L2 (Gaussian-noise) pixel loss, while training uses L1 + D-SSIM plus extra terms. Effects of what is left out:
   - Regularisers and auxiliary losses (opacity and scale regularisation, the bilateral grid's smoothness term, gradient and edge losses) add curvature, so leaving them out makes splats look **more** uncertain than the trained objective implies.
   - Appearance models (bilateral grid, exposure correction, PPISP) add parameters that can also explain pixel colour, so leaving them out makes splats, opacity especially, look **less** uncertain. The plugin also renders without them, which raises the noise estimate and scales every score by the same factor.
-- **Removal assumes one splat node or the scene's node order.** With several splat nodes, the mask offset follows the scene's node order.
 - **Removal doesn't update the scores.** After a removal the scores still describe the original fit; compute again for fresh ones.
-- **Cameras are pinhole.** Lens distortion is ignored.
+- **Cameras are pinhole.** Lens distortion is ignored; the panel warns when any training camera has distortion.
 
 ## Requirements
 

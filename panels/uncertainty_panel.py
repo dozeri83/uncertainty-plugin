@@ -86,6 +86,8 @@ class UncertaintyPanel(lf.ui.Panel):
                 ui.end_disabled()
 
     def _draw_sections(self, ui, ctl, nodes):
+        from ..uncertainty import lfs_bridge as br
+
         if ctl._heat_dirty and ctl.state == "done" and ctl.heatmap_on:
             ctl.refresh_heatmap()
 
@@ -101,6 +103,12 @@ class UncertaintyPanel(lf.ui.Panel):
                 changed, idx = ui.combo("Model", idx, [f"{n.name} ({n.gaussian_count:,})" for n in nodes])
                 if changed:
                     ctl.node_name = names[idx]
+                distorted, n_cams = br.distorted_camera_count()
+                if distorted:
+                    ui.text_colored(
+                        f"{distorted} of {n_cams} training cameras have lens distortion. The plugin treats every "
+                        "camera as pinhole, so results are approximate for this dataset.",
+                        (1.0, 0.75, 0.3, 1.0))
                 _, ctl.pre.render_width = ui.slider_int("Render width (px)", int(ctl.pre.render_width), 256, 4000)
                 ui.set_tooltip("Training views are rendered at this width for the Fisher pass. "
                                "Larger is slower but sees finer splats.")
@@ -239,19 +247,27 @@ class UncertaintyPanel(lf.ui.Panel):
                         ctl.reset_removal()
                     ui.text_disabled("Apply Removal deletes the hidden splats from this model "
                                      "(one undo step, Ctrl+Z restores them).")
+                    if ctl.all_hidden():
+                        ui.text_colored("Every splat is hidden; Apply Removal is refused because it would "
+                                        "delete the model itself.", (1.0, 0.75, 0.3, 1.0))
                 removed = ctl.deleted_count() - ctl.hidden_count
                 if removed > 0:
                     ui.text_disabled(f"{removed:,} splats deleted in this model. Scores still describe the "
                                      "original fit; compute again for updated scores.")
+
+        if ctl.error and ctl.state != "error" and not training_active():
+            ui.text_colored(ctl.error, (1.0, 0.45, 0.45, 1.0))
 
         # ------------------------------------------------ 4. export
         if have and ui.collapsing_header("4. Export", default_open=False):
             if not self._export_path:
                 self._export_path = str(Path.home() / f"{ctl.result_node}_uncertainty.ply")
             _, self._export_path = ui.path_input("PLY path", self._export_path, False, "Export PLY with scores")
+            ui.text_disabled("Exports the visible splats; deleted or hidden ones are left out.")
             if ui.button("Export PLY with uncertainty attributes"):
                 try:
                     ctl.export_ply(self._export_path)
+                    ctl.error = ""
                     lf.log.info(f"splat_uncertainty: wrote {self._export_path}")
                 except Exception as exc:
                     ctl.error = str(exc)
