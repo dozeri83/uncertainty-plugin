@@ -19,6 +19,19 @@ from .posterior import (STRATEGIES, STRATEGY_BY_KEY, PriorSettings, UncertaintyR
 
 SH_C0 = 0.28209479177387814
 
+# Trainer states in which the training model is being changed. "paused", "finished", "completed",
+# "idle" and "ready" are safe.
+_TRAINING_BUSY = {"starting", "running", "stopping"}
+TRAINING_MESSAGE = "Training is running. Pause or finish training to use Splat Uncertainty."
+
+
+def training_active() -> bool:
+    """True while the trainer may be changing the model."""
+    try:
+        return str(lf.trainer_state()) in _TRAINING_BUSY
+    except Exception:
+        return False
+
 
 @dataclass
 class PreprocessSettings:
@@ -82,10 +95,28 @@ class Controller:
     def busy(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
+    def _blocked_by_training(self) -> bool:
+        if training_active():
+            self.error = TRAINING_MESSAGE
+            return True
+        return False
+
+    def on_training_started(self):
+        """Give the trainer back an untouched model: stop our pass, hide the heatmap, unhide splats."""
+        self._cancel = True
+        try:
+            self.restore_hidden()
+        except Exception as exc:
+            lf.log.warn(f"splat_uncertainty: could not unhide splats at training start: {exc}")
+        try:
+            self.restore_colors()
+        except Exception as exc:
+            lf.log.warn(f"splat_uncertainty: could not restore colours at training start: {exc}")
+
     def start(self, node_name: str):
         from . import lfs_bridge as br
 
-        if self.busy():
+        if self.busy() or self._blocked_by_training():
             return
         node = br.find_node(node_name)
         if node is None:
@@ -174,7 +205,7 @@ class Controller:
 
     def recompute_posterior(self):
         """Re-run the posterior with new prior or noise settings, reusing the Fisher blocks."""
-        if self._fisher is None or self.busy():
+        if self._fisher is None or self.busy() or self._blocked_by_training():
             return
         fisher, scales = self._fisher, self._scales_log
 
@@ -257,6 +288,8 @@ class Controller:
         from . import lfs_bridge as br
         import cupy as cp
 
+        if self._blocked_by_training():
+            return False
         if not self.result_valid():
             self.error = "Uncertainty is missing or out of date for this model. Run the preprocessing first."
             return False
@@ -377,7 +410,7 @@ class Controller:
         """Hide (soft delete) the splats picked by the current removal settings."""
         from . import lfs_bridge as br
 
-        if not self.result_valid():
+        if not self.result_valid() or self._blocked_by_training():
             return
         mask = self.removal_mask()
         if mask is None:
@@ -424,6 +457,8 @@ class Controller:
         """
         from . import lfs_bridge as br
 
+        if training_active():
+            raise RuntimeError(TRAINING_MESSAGE)
         if not self.result_valid() or self._hidden is None or not self._hidden.any():
             raise RuntimeError("Nothing is hidden")
         scene = lf.get_scene()

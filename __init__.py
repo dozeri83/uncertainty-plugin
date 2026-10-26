@@ -11,6 +11,13 @@ from .panels.uncertainty_panel import UncertaintyPanel
 _classes = [UncertaintyPanel]
 _PLUGIN = "splat_uncertainty"
 _CAPS = []
+_session = None
+
+
+def _on_training_start(_hook):
+    from .uncertainty.controller import get_controller
+
+    get_controller().on_training_started()
 
 
 def _cap(name, description, schema=None):
@@ -103,12 +110,25 @@ def on_load():
             lf.plugins.register_capability(name, fn, desc, schema, plugin_name=_PLUGIN)
         except Exception as exc:
             lf.log.warn(f"{_PLUGIN}: capability {name} not registered: {exc}")
+    global _session
+    try:
+        _session = lf.ControlSession()
+        _session.on_training_start(_on_training_start)
+    except Exception as exc:
+        lf.log.warn(f"{_PLUGIN}: training-start hook not registered: {exc}")
     lf.log.info("Splat Uncertainty plugin loaded")
 
 
 def on_unload():
     from .uncertainty.controller import reset_controller
 
+    global _session
+    if _session is not None:
+        try:
+            _session.clear()
+        except Exception:
+            pass
+        _session = None
     reset_controller()
     for name, *_ in _CAPS:
         try:

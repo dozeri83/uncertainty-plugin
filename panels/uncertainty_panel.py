@@ -9,7 +9,7 @@ import numpy as np
 import lichtfeld as lf
 
 from ..uncertainty import colormap
-from ..uncertainty.controller import get_controller
+from ..uncertainty.controller import TRAINING_MESSAGE, get_controller, training_active
 from ..uncertainty.posterior import STRATEGIES, STRATEGY_BY_KEY
 
 _KIND_TAG = {"paper": "paper", "derived": "derived", "heuristic": "heuristic"}
@@ -72,6 +72,20 @@ class UncertaintyPanel(lf.ui.Panel):
             ui.text_colored(f"Scene unavailable: {exc}", (1.0, 0.4, 0.4, 1.0))
             return
 
+        training = training_active()
+        if training:
+            # safety net in case the training-start hook did not run
+            if ctl.heatmap_on or ctl.hidden_count or ctl.busy():
+                ctl.on_training_started()
+            ui.text_colored(TRAINING_MESSAGE, (1.0, 0.75, 0.3, 1.0))
+            ui.begin_disabled(True)
+        try:
+            self._draw_sections(ui, ctl, nodes)
+        finally:
+            if training:
+                ui.end_disabled()
+
+    def _draw_sections(self, ui, ctl, nodes):
         if ctl._heat_dirty and ctl.state == "done" and ctl.heatmap_on:
             ctl.refresh_heatmap()
 

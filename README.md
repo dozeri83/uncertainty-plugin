@@ -1,11 +1,13 @@
 # Splat Uncertainty
 
-A LichtFeld Studio plugin that estimates how well the training photos pin down each splat. It shows the result as heatmaps and lets you select (and delete) splats by uncertainty.
+A LichtFeld Studio plugin that estimates how well the training photos pin down each splat. It shows the result as heatmaps and lets you remove splats by uncertainty.
+
+![Uncertainty heatmap of the Mip-NeRF 360 bicycle scene: blue splats are well constrained, green ones less so](docs/heatmap_bicycle.png)
 
 ## Use
 
 1. Open a trained project, or a splat file together with its dataset cameras.
-2. **Compute uncertainty**: choose the model and a render width, then press *Compute uncertainty*. On a 5M-splat model with 82 views at 1000 px this takes about 4 s on an RTX 4090, plus about 10 s for the posterior.
+2. **Compute uncertainty**: choose the model and a render width, then press *Compute uncertainty*.
 3. **Heatmap**: pick a strategy, colour map, log scale and percentile range, then *Show heatmap*.
    - Magenta marks splats no training view sees.
    - The heatmap writes into the model's colours in memory. Press *Hide heatmap* (the same button) before saving the project.
@@ -15,24 +17,30 @@ A LichtFeld Studio plugin that estimates how well the training photos pin down e
    - A project opened from training stays a training project; no second model is created, because LichtFeld renders only the training model in that mode.
 5. **Export** (optional) writes a PLY with every score as an extra `unc_<strategy>` attribute.
 
+**While training runs** the panel is disabled and shows "Training is running. Pause or finish training to use Splat Uncertainty." When training starts, the plugin first hides the heatmap, unhides any splats it hid and cancels a running Fisher pass, so the trainer always gets the untouched model.
+
 The same steps are available as plugin capabilities, for scripts and MCP: `splat_uncertainty.compute`, `.status`, `.heatmap` and `.remove`.
 
 ## Method
 
 The plugin uses a block-diagonal Laplace approximation with Gauss-Newton curvature, which is the setting of PUP 3D-GS:
 
-```
-F_i     = sum over views and pixels of J_p,iᵀ J_p,i       J = d(pixel colour) / d(theta_i)
-Sigma_i = (F_i / sigma² + Lambda)⁻¹
-```
+$$
+F_i = \sum_{\text{views}} \sum_{p} J_{p,i}^\top J_{p,i},
+\qquad J_{p,i} = \frac{\partial C_p}{\partial \theta_i}
+$$
 
-- `theta_i` is the splat's 10 parameters: position (3), log-scale (3), local rotation (3) and opacity logit (1).
-- `sigma²` is the pixel noise. By default it is the mean squared residual between the model's render and the photos.
-- `Lambda` is a weak Gaussian prior. It keeps directions no view constrains finite. Its position term is given as a fraction of the scene scale.
+$$
+\Sigma_i = \left( \frac{F_i}{\sigma^2} + \Lambda \right)^{-1}
+$$
+
+- $`\theta_i`$ is the splat's 10 parameters: position (3), log-scale (3), local rotation (3) and opacity logit (1).
+- $`\sigma^2`$ is the pixel noise. By default it is the mean squared residual between the model's render and the photos.
+- $`\Lambda`$ is a weak Gaussian prior. It keeps directions no view constrains finite. Its position term is given as a fraction of the scene scale.
 
 The Fisher pass runs custom CUDA kernels, compiled at runtime with NVRTC through CuPy. They copy the LichtFeld FastGS conventions: EWA projection with 0.3 px dilation, pixel centres at +0.5, alpha clamped to [1/255, 0.999], and a transmittance cut at 1e-4. On the test scene the plugin's render reaches 30–37 dB PSNR against the photos.
 
-Per pixel, a splat's colour Jacobian factors as `dC/dalpha · dalpha/du`, where `u` is the splat's screen-space parameters (2D mean, conic, opacity). The kernel therefore accumulates exact per-pixel outer products in `u` space with a warp reduction. It then maps them to the 10 parameters with the projection Jacobian (central differences in double precision). These are exact per-pixel outer products, not the "empirical Fisher" built from squared per-image gradients.
+Per pixel, a splat's colour Jacobian factors as $`\frac{\partial C}{\partial \alpha} \cdot \frac{\partial \alpha}{\partial u}`$, where $`u`$ is the splat's screen-space parameters (2D mean, conic, opacity). The kernel therefore accumulates exact per-pixel outer products in $`u`$ space with a warp reduction. It then maps them to the 10 parameters with the projection Jacobian (central differences in double precision). These are exact per-pixel outer products, not the "empirical Fisher" built from squared per-image gradients.
 
 ### Strategies
 
