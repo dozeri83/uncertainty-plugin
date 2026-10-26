@@ -211,7 +211,7 @@ class UncertaintyPanel(lf.ui.Panel):
                 dirty |= c
                 unit = STRATEGY_BY_KEY[key].units
                 if sel.mode in (0, 2):
-                    c, sel.percent = ui.slider_float("Percent of splats", float(sel.percent), 0.0, 50.0)
+                    c, sel.percent = ui.slider_float("Percent of splats", float(sel.percent), 0.0, 100.0)
                     dirty |= c
                     thr = ctl.threshold_value()
                     if thr is not None:
