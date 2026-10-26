@@ -62,6 +62,9 @@ Per pixel, a splat's colour Jacobian factors as $`\frac{\partial C}{\partial \al
 - **The scores rank splats; they are not calibrated error bars.** The block-diagonal approximation ignores coupling between splats, which makes it overconfident.
 - **Parameter-space uncertainty has been reported to correlate weakly with actual error in new views.** See *Predictive Photometric Uncertainty in Gaussian Splatting*, arXiv 2603.22786 (2026). Treat floater removal as experimental, and check the result on held-out views.
 - **The heatmap modifies the model's colours in memory until restored.** Restoring also happens when the plugin unloads.
+- **Only an L2 photometric term is modelled, not LichtFeld's full training loss.** The curvature comes from a Gauss-Newton approximation of an L2 (Gaussian-noise) pixel loss, while training uses L1 + D-SSIM plus extra terms. Effects of what is left out:
+  - Regularisers and auxiliary losses (opacity and scale regularisation, the bilateral grid's smoothness term, gradient and edge losses) add curvature, so leaving them out makes splats look **more** uncertain than the trained objective implies.
+  - Appearance models (bilateral grid, exposure correction, PPISP) add parameters that can also explain pixel colour, so leaving them out makes splats, opacity especially, look **less** uncertain. The plugin also renders without them, which raises the noise estimate and scales every score by the same factor.
 - **Removal assumes one splat node or the scene's node order.** With several splat nodes, the mask offset follows the scene's node order.
 - **Removal doesn't update the scores.** After a removal the scores still describe the original fit; compute again for fresh ones.
 - **Cameras are pinhole.** Lens distortion is ignored.
