@@ -3,3 +3,5 @@ __pycache__/
 uv.lock
 settings.json
 .idea/
+tools/out/
+.venv-tools/
