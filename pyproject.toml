@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Per-splat uncertainty from the Laplace / Fisher approximation: heatmaps and uncertainty-based selection"
 authors = [{ name = "dozeri" }]
 requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
 dependencies = [
     "numpy",
     "cupy-cuda12x[ctk]>=13.3",
