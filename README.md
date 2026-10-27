@@ -7,7 +7,7 @@ A LichtFeld Studio plugin that estimates how well the training photos pin down e
 ## Use
 
 1. Open a trained project, or a splat file together with its dataset cameras.
-2. **Compute uncertainty**: choose the model and a render width, then press *Compute uncertainty*.
+2. **Compute uncertainty**: choose the model and the calculation render width (the resolution the training views are rendered at for the computation; the width the model was trained at is a good choice), then press *Compute uncertainty*.
 3. **Heatmap**: pick a strategy, colour map, log scale and percentile range, then *Show heatmap*.
    - Magenta marks splats no training view sees.
    - The heatmap writes into the model's colours in memory. Press *Hide heatmap* (the same button) before saving the project.

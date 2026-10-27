@@ -109,7 +109,7 @@ class UncertaintyPanel(lf.ui.Panel):
                         f"{distorted} of {n_cams} training cameras have lens distortion. The plugin treats every "
                         "camera as pinhole, so results are approximate for this dataset.",
                         (1.0, 0.75, 0.3, 1.0))
-                _, ctl.pre.render_width = ui.slider_int("Render width (px)", int(ctl.pre.render_width), 256, 4000)
+                _, ctl.pre.render_width = ui.slider_int("Calculation render width (px)", int(ctl.pre.render_width), 256, 4000)
                 ui.set_tooltip("Training views are rendered at this width for the Fisher pass. "
                                "Larger is slower but sees finer splats.")
                 _, ctl.pre.estimate_noise = ui.checkbox("Estimate pixel noise from photos", ctl.pre.estimate_noise)
